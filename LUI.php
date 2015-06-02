@@ -65,6 +65,15 @@ class LUI {
 		}
 	}
 	
+	public static function availableLanguageCodes() {
+		if (!empty(self::$translations)) {
+			return array_keys(self::$translations);
+		}
+		else {
+			return array();
+		}
+	}
+	
 	public static function reportMissingKeys() {
 		if (LUI_DEBUG && !empty(self::$missingKeys)) {
 			LuiGrab::getApi('translations/debug', self::$apiKey, self::$buildNumber, self::$missingKeys);
@@ -75,12 +84,17 @@ class LUI {
 	// Private helpers
 	
 	private static function processData($dataString) {
-		$translations = @json_decode($dataString, true);
+		$translations = json_decode($dataString, true);
 		if ($translations && isset($translations['data'])) {
 			self::$translations = $translations['data'];
 		}
 		else {
-			throw new LuiException('Unable to process translations!');
+			if (isset($translations['name']) && isset($translations['message'])) {
+				throw new LuiException($translations['name'].': '.$translations['message']);
+			}
+			else {
+				throw new LuiException('Unable to process translations!');
+			}
 		}
 	}
 	

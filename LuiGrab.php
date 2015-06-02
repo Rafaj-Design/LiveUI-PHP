@@ -4,10 +4,13 @@
 class LuiGrab {
 	
 	
+	public static $baseUrl = 'http://api.liveui.io';
+	
+	
 	// Public methods
 	
 	public static function getApi($path, $apiKey, $build=0, $postData=null) {
-		$url = 'http://api.liveui.io/'.$path.'.json';
+		$url = self::$baseUrl.'/'.$path.'.json';
 		return self::get($url, $apiKey, $build, $postData);
 	}
 	
