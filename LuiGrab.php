@@ -30,6 +30,7 @@ class LuiGrab {
 		
 		$headers = array();
 		$headers[] = 'X-ApiKey: '.$apiKey;
+		$headers[] = 'X-Platform: LiveUI for PHP';
 		$headers[] = 'X-ApiVersion: '.$build;
 		if (!empty($postData)) {
 			$headers[] = 'Content-Type: application/json';

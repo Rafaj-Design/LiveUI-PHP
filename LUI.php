@@ -1,8 +1,8 @@
 <?php
 
 
-if (!defined('LUI_DEBUG')) {
-	define('LUI_DEBUG', 0);
+if (!defined('(bool)LUI_DEBUG')) {
+	define('(bool)LUI_DEBUG', 0);
 }
 
 
@@ -15,16 +15,16 @@ class LUI {
 	private static $apiKey = null;
 	private static $tmpFolderPath = null;
 	private static $translations = array();
-	private static $languageCode;
+	private static $languageCode = null;
 	private static $buildNumber;
 	private static $missingKeys = array();
 	
 	// Constructor (kinda)
 	
-	public static function init($apiKey, $languageCode='en', $buildNumber=0, $tmpFolderPath='./tmp') {
+	public static function init($apiKey, $buildNumber=0, $tmpFolderPath='./tmp') {
 		self::$tmpFolderPath = $tmpFolderPath;
 		self::$apiKey = $apiKey;
-		self::$languageCode = $languageCode;
+		self::$languageCode = null;
 		self::$buildNumber = $buildNumber;
 		
 		self::loadCache();
@@ -33,11 +33,11 @@ class LUI {
 	// Public methods
 	
 	public static function get($key) {
-		if (LUI_DEBUG > 1) {
-			if (LUI_DEBUG == 2) {
+		if ((bool)LUI_DEBUG > 1) {
+			if ((bool)LUI_DEBUG == 2) {
 				return $key;
 			}
-			elseif (LUI_DEBUG == 3) {
+			elseif ((bool)LUI_DEBUG == 3) {
 				$out = '';
 				$x = 0;
 				for ($i = 0; $i < strlen($key); $i++) {
@@ -58,7 +58,7 @@ class LUI {
 			return self::$translations[self::$languageCode]['translations'][$key];
 		}
 		else {
-			if (LUI_DEBUG) {
+			if ((bool)LUI_DEBUG) {
 				self::$missingKeys['General'][] = $key;
 			}
 			return $key;
@@ -75,7 +75,7 @@ class LUI {
 	}
 	
 	public static function reportMissingKeys() {
-		if (LUI_DEBUG && !empty(self::$missingKeys)) {
+		if ((bool)LUI_DEBUG && !empty(self::$missingKeys)) {
 			LuiGrab::getApi('translations/debug', self::$apiKey, self::$buildNumber, self::$missingKeys);
 			self::$missingKeys = array();
 		}
@@ -99,25 +99,90 @@ class LUI {
 	}
 	
 	private static function cachePath() {
-		return self::$tmpFolderPath.'/cache.json';
+		return self::$tmpFolderPath.'/LUICache.json';
+	}
+	
+	private function loadRemoteData($path) {
+		if (!is_writable(self::$tmpFolderPath)) {
+			throw new LuiException('Temporary folder ('.self::$tmpFolderPath.') is not writable!');
+		}
+		else {
+			$dataString = LuiGrab::getApi('translations', self::$apiKey, self::$buildNumber);
+			self::processData($dataString);
+			file_put_contents($path, $dataString);
+		}
 	}
 	
 	private static function loadCache() {
 		$path = self::cachePath();
-		if (file_exists($path) && !LUI_DEBUG) {
+		if (file_exists($path)) {
+			$time = (time() - filemtime($path));
+			if ($time > 3600) {
+				self::loadRemoteData($path);
+			}
 			$dataString = file_get_contents($path);
 			self::processData($dataString);
 		}
 		else {
-			if (!is_writable(self::$tmpFolderPath)) {
-				throw new LuiException('Temporary folder ('.self::$tmpFolderPath.') is not writable!');
-			}
-			else {
-				$dataString = LuiGrab::getApi('translations', self::$apiKey, self::$buildNumber);
-				self::processData($dataString);
-				file_put_contents($path, $dataString);
-			}
+			self::loadRemoteData($path);
 		}
+		
+		self::$languageCode = self::bestSuitableLanguage();
+	}
+	
+	// Language selection
+	
+	private static $userSelectedLanguageCode = null;
+	
+	public static function availableLangs() {
+		return array_keys(self::$translations);
+	}
+	
+	private static function bestSuitableLanguage() {
+		$remoteLangs = self::availableLangs();
+		
+	    if (self::$userSelectedLanguageCode) {
+	        foreach ($remoteLangs as $languageCode) {
+	            if ($languageCode == self::$userSelectedLanguageCode) {
+	                return self::$userSelectedLanguageCode;
+	            }
+	        }
+	    }
+	    
+	    $systemLangs = explode(',', $_SERVER['HTTP_ACCEPT_LANGUAGE']);
+	    foreach ($systemLangs as $key=>$langCode) {
+	    	$langCode = explode(';', $langCode);
+		    $systemLangs[$key] = $langCode[0];
+	    }
+	    
+	    $suitableLangs = array();
+	    $defaultRemoteLang = array();
+	    foreach ($systemLangs as $sysCode) {
+	        foreach (self::$translations as $remCode=>$remLang) {
+	            if ((bool)$remLang['default']) $defaultRemoteLang = $remLang;
+	            if ($sysCode == $remCode) {
+	                return $sysCode;
+	            }
+	            else {
+	                $sysLangComponents = explode('-', $sysCode);
+	                $remLangComponents = explode('-', $remCode);
+				    
+	                if ($remLangComponents[0] == $sysCode) {
+	                    $suitableLangs[] = $remCode;
+	                }
+	                else if ($sysLangComponents[0] == $remLangComponents[0]) {
+	                    $suitableLangs[] = $remCode;
+	                }
+	            }
+	        }
+	    }
+	    
+	    if (count($suitableLangs) > 0) {
+	        $code = $suitableLangs[0];
+	        return $code;
+	    }
+	    
+    	return $defaultRemoteLang['code'];
 	}
 	
 }
