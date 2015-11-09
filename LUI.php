@@ -115,7 +115,7 @@ class LUI {
 	
 	private static function loadCache() {
 		$path = self::cachePath();
-		if (file_exists($path)) {
+		if (file_exists($path) && !(bool)LUI_DEBUG) {
 			$time = (time() - filemtime($path));
 			if ($time > 3600) {
 				self::loadRemoteData($path);
